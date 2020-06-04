@@ -74,8 +74,10 @@ function psh {
 }
 #open vs code in native windows, not using wsl integration
 function vs {
-  local p=$(wslpath -w .)
-  psh code $p
+  case $PWD/ in
+    /c/*) psh code $(wslpath -w .);;
+    *) code .;;
+  esac
 }
 
 function _fancy_prompt {
