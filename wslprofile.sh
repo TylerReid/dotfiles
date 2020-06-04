@@ -68,6 +68,16 @@ function newsln {
   dotnet build
 }
 
+# run a command in windows powershell, ex: `psh 'Write-Host "yep $env:computername"; pwd; cd ..; pwd;'`
+function psh {
+  pwsh.exe -c "$*"
+}
+#open vs code in native windows, not using wsl integration
+function vs {
+  local p=$(wslpath -w .)
+  psh code $p
+}
+
 function _fancy_prompt {
   local RED="\[\033[01;31m\]"
   local GREEN="\[\033[01;32m\]"
