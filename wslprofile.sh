@@ -26,10 +26,19 @@ if [ -d "$HOME/.local/bin" ] ; then
     PATH="$HOME/.local/bin:$PATH"
 fi
 
+if [ -d "$HOME/go/bin" ] ; then
+    PATH="$HOME/go/bin:$PATH"
+fi
+
+export PATH=$PATH:/usr/local/go/bin
+
+. ~/.loadshit.sh
+
+export AWS_DEFAULT_REGION=us-east-1
 
 alias awsclear="truncate -s 0 ~/.aws/credentials"
 function awssamlauth {
-  saml2aws login --session-duration=28800
+  saml2aws login --session-duration=28800 --mfa='DUO'
 }
 function awsload {
   eval $($(which saml2aws) script --shell=bash)
@@ -46,6 +55,32 @@ function kubelogin {
   
   awslogin
   aws eks update-kubeconfig --name "eks-$1"
+}
+
+function decodejwt {
+  sed 's/\./\n/g' <<< $(cut -d. -f1,2 <<< $1) | base64 --decode | jq
+}
+
+function git {
+  if isWinDir
+  then
+    git.exe "$@"
+  else
+    /usr/bin/git "$@"
+  fi
+}
+
+function dotnet {
+  if isWinDir
+  then
+    dotnet.exe "$@"
+  else
+    /usr/bin/dotnet "$@"
+  fi
+}
+
+function explorer {
+  explorer.exe $(wslpath -w .);
 }
 
 function gp {
@@ -68,17 +103,50 @@ function newsln {
   dotnet build
 }
 
+function convertCore {
+  if [ $# != 2 ]; then
+    echo "usage: convertCore [sln] [tfm]"
+    exit 1
+  fi
+  psh try-convert -w $1 -tfm $2 --no-backup
+}
+
+function rsln {
+  $(rider64.exe *.sln &> /dev/null &)
+}
+
 # run a command in windows powershell, ex: `psh 'Write-Host "yep $env:computername"; pwd; cd ..; pwd;'`
 function psh {
   pwsh.exe -c "$*"
 }
-#open vs code in native windows, not using wsl integration
+#open vs code in native windows if in windows dir, otherwise use wsl integration
 function vs {
+  if isWinDir
+  then
+    psh code $(wslpath -w .)
+  else
+    code .
+  fi
+}
+
+function isWinDir {
   case $PWD/ in
-    /c/*) psh code $(wslpath -w .);;
-    *) code .;;
+    /c/*) return $(true);;
+    *) return $(false);;
   esac
 }
+
+function gitssh {
+  old=$(git remote get-url origin)
+  git remote set-url origin ${old/'https://git.kabbage.com/scm'/'ssh://git@git.kabbage.com:7999'}
+}
+
+SHOW_GIT_CHANGES=0
+function togglegit {
+  SHOW_GIT_CHANGES=$((1-SHOW_GIT_CHANGES))
+}
+
+export VIRTUAL_ENV_DISABLE_PROMPT=1
 
 function _fancy_prompt {
   local RED="\[\033[01;31m\]"
@@ -88,24 +156,38 @@ function _fancy_prompt {
   local WHITE="\[\033[00m\]"
   local PURPLE="\[\033[01;35m\]"
 
-  local PROMPT=""
+  local PROMPT="$PURPLE┌──$BLUE["
 
   # Working directory
-  PROMPT=$PROMPT"$GREEN\w"
+  PROMPT=$PROMPT"$GREEN\w$BLUE]"
+
+  if isWinDir
+  then
+    git='psh git'
+  else
+    git=git
+  fi
 
   # Git-specific
-  local BRANCH=$(git branch --no-color 2> /dev/null | sed -e "/^[^*]/d" -e "s/* \(.*\)/\1/")
+  local BRANCH=$($git branch --no-color 2> /dev/null | sed -e "/^[^*]/d" -e "s/* \(.*\)/\1/")
   if [ -n "$BRANCH" ] # Are we in a git directory?
   then
     # Open paren
-    PROMPT=$PROMPT" $PURPLE("
+    PROMPT=$PROMPT"-$PURPLE("
 
     # Branch
     PROMPT=$PROMPT$BLUE$BRANCH
 
     # Warnings
     PROMPT=$PROMPT$WHITE
-    local GIT_STATUS=$(git status 2> /dev/null)
+
+    if [ $SHOW_GIT_CHANGES == 0 ]
+    then
+      local GIT_STATUS=$($git status 2> /dev/null)
+    else
+      local GIT_STATUS='nothing to commit'      
+    fi
+    
     # Merging
     echo $GIT_STATUS | grep "Unmerged paths" > /dev/null 2>&1
     if [ "$?" -eq "0" ]
@@ -134,7 +216,7 @@ function _fancy_prompt {
   fi
 
   # Final $ symbol
-  PROMPT=$PROMPT" $BLUE\$$WHITE "
+  PROMPT=$PROMPT" \n$PURPLE└─$BLUE\$$WHITE "
 
   export PS1=$PROMPT
 }
@@ -145,12 +227,16 @@ alias ..="cd .."
 alias ...="cd ../.."
 alias ....="cd ../../.."
 alias .....="cd ../../../.."
+alias cd..="cd .."
 
 alias g="git"
-alias unfuckgit="git config core.autocrlf true"
+alias unfuckgit="git config core.autocrlf true && gitssh"
 
 alias cls="clear"
 alias explorer="explorer.exe ."
-alias rsln="rider64.exe *.sln &> /dev/null &"
+alias kbg="cd /c/Kabbage/Source/"
 
-cd /mnt/c/Kabbage/Source/
+alias k="kubectl"
+
+export PATH="$HOME/.cargo/bin:$PATH"
+if [ -e /home/treid/.nix-profile/etc/profile.d/nix.sh ]; then . /home/treid/.nix-profile/etc/profile.d/nix.sh; fi # added by Nix installer
