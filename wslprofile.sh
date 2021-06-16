@@ -218,7 +218,7 @@ function _fancy_prompt {
   # Final $ symbol
   PROMPT=$PROMPT" \n$PURPLE└─$BLUE\$$WHITE "
 
-  export PS1=$PROMPT
+  export PS1="\[\e]0;\W\a\]$PROMPT"
 }
 
 export PROMPT_COMMAND="_fancy_prompt"
